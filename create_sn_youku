@@ -1,0 +1,86 @@
+#!/usr/bin/env php
+<?php
+/**
+ * 修复eeprom的mac地址,生成路由宝序列号
+ * User: sinabs
+ * Date: 16/8/17
+ * Time: 下午3:57
+ */
+$bin = $_SERVER['argv'][1];
+if (!file_exists($bin)) {
+    exit(sprintf('路径为:%s的bin文件不存在', $bin));
+}
+
+if (!is_writable($bin)) {
+    exit(sprintf('路径为:%s的bin文件不可写', $bin));
+}
+
+if (!$handle = fopen($bin, 'r+')) {
+    exit(sprintf('不能打开文件%s', $bin));
+}
+
+//修改mac地址
+editMac16($handle, 8);
+editMac16($handle, 44);
+editMac16($handle, 50);
+setNewNsCode($handle, 272);
+
+fclose($handle);
+/**
+ * 写入sn的序列号
+ * @param $handle
+ * @param $offset
+ */
+function setNewNsCode($handle, $offset)
+{
+    if (fseek($handle, 46) != -1) {
+        $buffer = fread($handle, 6);
+        $mac    = strtoupper(bin2hex($buffer));
+        $sn     = preg_replace('/[a-f]/i', '', md5($mac));
+        $sn     = '2115'.substr($sn, 0, 12);
+        echo sprintf("mac:%s sn:%s\n", $mac, $sn);
+
+        //写入sn序列号
+        if (fseek($handle, $offset) != -1) {
+            $sn_arr = str_split($sn, 2);
+            foreach ($sn_arr as $hex) {
+                fwrite($handle, pack('C1', gmp_init('0x'.$hex)));
+            }
+        }
+    }
+}
+
+/**
+ * @param $handle
+ * @param $offset
+ */
+function editMac16($handle, $offset)
+{
+    if (fseek($handle, $offset) != -1) {
+        $buffer = fgets($handle, 2);
+        $a      = changeHex($buffer);
+        echo sprintf("offset:%s %s => %s\n", $offset, bin2hex($buffer), $a);
+
+        $buffer = fgets($handle, 2);
+        $b      = changeHex($buffer);
+        echo sprintf("offset:%s %s => %s\n", $offset + 1, bin2hex($buffer), $b);
+        fseek($handle, $offset);
+        fwrite($handle, hex2bin($a).hex2bin($b));
+    }
+}
+
+
+/**
+ * @param $buffer
+ * @return string
+ */
+function changeHex($buffer)
+{
+    $dec = hexdec(bin2hex($buffer));
+    if ($dec < 255) {
+        $dec = $dec + 1;
+    } else {
+        $dec = $dec - 1;
+    }
+    return dechex($dec);
+}
