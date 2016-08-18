@@ -20,9 +20,9 @@ if (!$handle = fopen($bin, 'r+')) {
 }
 
 //修改mac地址
-editMac16($handle, 8);
-editMac16($handle, 44);
-editMac16($handle, 50);
+editMac16($handle, 4);
+editMac16($handle, 40);
+editMac16($handle, 46);
 setNewNsCode($handle, 272);
 
 fclose($handle);
@@ -57,30 +57,41 @@ function setNewNsCode($handle, $offset)
 function editMac16($handle, $offset)
 {
     if (fseek($handle, $offset) != -1) {
-        $buffer = fgets($handle, 2);
-        $a      = changeHex($buffer);
-        echo sprintf("offset:%s %s => %s\n", $offset, bin2hex($buffer), $a);
+        //改ICON:youku.png
+        fwrite($handle, pack('C3', 0x54, 0x36, 0x9b));
 
-        $buffer = fgets($handle, 2);
-        $b      = changeHex($buffer);
-        echo sprintf("offset:%s %s => %s\n", $offset + 1, bin2hex($buffer), $b);
-        fseek($handle, $offset);
-        fwrite($handle, hex2bin($a).hex2bin($b));
+        $buffer = fread($handle, 1);
+        $a      = changeHex($buffer, 3);
+        echo sprintf("offset:%s %s => %s\n", $offset + 3, bin2hex($buffer), $a);
+
+        $buffer = fread($handle, 1);
+        $b      = changeHex($buffer, 2);
+        echo sprintf("offset:%s %s => %s\n", $offset + 4, bin2hex($buffer), $b);
+
+        $buffer = fread($handle, 1);
+        $c      = changeHex($buffer, 1);
+        echo sprintf("offset:%s %s => %s\n", $offset + 5, bin2hex($buffer), $c);
+
+        //write new mac
+        if (fseek($handle, $offset + 3) != -1) {
+            fwrite($handle, hex2bin($a).hex2bin($b).hex2bin($c));
+        }
     }
 }
 
 
 /**
  * @param $buffer
+ * @param $num
  * @return string
  */
-function changeHex($buffer)
+function changeHex($buffer, $num = 1)
 {
     $dec = hexdec(bin2hex($buffer));
-    if ($dec < 255) {
-        $dec = $dec + 1;
+    if ($dec < 250) {
+        $dec = $dec + $num;
     } else {
-        $dec = $dec - 1;
+        $dec = $dec - $num;
     }
     return dechex($dec);
 }
